@@ -9,7 +9,5 @@ services:
     volumes:
       # Persist the downloaded cache packages
       - ./storage:/app/storage
-      # Persist the SQLite statistics database
+      # Persist the SQLite statistics database and config
       - ./data:/app/data
-      # Mount the config file so you can edit it easily on your host
-      - ./config.json:/app/config.json

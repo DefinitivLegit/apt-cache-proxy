@@ -10,6 +10,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG = {}
 config_lock = Lock()
 
+DEFAULT_CONFIG = {
+  "host": "0.0.0.0",
+  "port": 8080,
+  "storage_path": "storage",
+  "database_path": "data/stats.db",
+  "cache_days": 7,
+  "cache_retention_enabled": True,
+  "log_level": "INFO",
+  "passthrough_mode": True,
+  "admin_token": "changeme_to_secure_random_string"
+}
+
+def get_config_path():
+    """Returns the path to the config file, ensuring the directory exists."""
+    data_dir = BASE_DIR / 'data'
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir / 'config.json'
+
 def get_config(key, default=None):
     with config_lock:
         return CONFIG.get(key, default)
@@ -18,12 +36,15 @@ def save_config_value(key, value):
     """Update a single config value and save to disk"""
     global CONFIG
     try:
-        config_path = BASE_DIR / 'config.json'
+        config_path = get_config_path()
         
         # Read current file first to preserve comments/structure if possible (though json lib won't)
         # or just use current memory state? Better to read fresh to avoid overwriting external changes
-        with open(config_path, 'r') as f:
-            current_disk_config = json.load(f)
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                current_disk_config = json.load(f)
+        else:
+            current_disk_config = CONFIG.copy()
             
         current_disk_config[key] = value
         
@@ -47,9 +68,16 @@ def load_config():
     """Load configuration from JSON file"""
     global CONFIG
     try:
-        config_path = BASE_DIR / 'config.json'
-        with open(config_path, 'r') as f:
-            new_config = json.load(f)
+        config_path = get_config_path()
+        
+        if not config_path.exists():
+            logger.info(f"Config file not found at {config_path}, creating default.")
+            with open(config_path, 'w') as f:
+                json.dump(DEFAULT_CONFIG, f, indent=2)
+            new_config = DEFAULT_CONFIG
+        else:
+            with open(config_path, 'r') as f:
+                new_config = json.load(f)
             
         with config_lock:
             CONFIG.clear()

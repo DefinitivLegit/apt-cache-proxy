@@ -24,7 +24,7 @@ A modern, lightweight APT caching proxy server written in Python. It caches pack
 
 ![Dashboard](images/dashboard.png)
 
-Use the `admin_token` from `config.json` to log in to the admin panel.
+Use the `admin_token` from `data/config.json` to log in to the admin panel.
 
 ![Admin Panel](images/admin.png)
 
@@ -45,7 +45,7 @@ Use the `admin_token` from `config.json` to log in to the admin panel.
 
 ### Using Docker Compose
 
-1.  Download `docker-compose.prod.yml` (or copy the content below) and `config.json`.
+1.  Download `docker-compose.prod.yml` (or copy the content below).
 
     ```yaml
     services:
@@ -58,7 +58,6 @@ Use the `admin_token` from `config.json` to log in to the admin panel.
         volumes:
           - ./storage:/app/storage
           - ./data:/app/data
-          - ./config.json:/app/config.json
     ```
 
 2.  Start the container:
@@ -74,7 +73,6 @@ docker run -d \
   -p 8080:8080 \
   -v $(pwd)/storage:/app/storage \
   -v $(pwd)/data:/app/data \
-  -v $(pwd)/config.json:/app/config.json \
   ghcr.io/definitivlegit/apt-cache-proxy:latest
 ```
 
@@ -92,9 +90,9 @@ docker run -d \
     ```
 
 3.  Configure the server:
-    Edit `config.json` to customize the host, port, and admin token.
+    Edit `data/config.json` to customize the host, port, and admin token. (The file is generated on first run if it doesn't exist).
 
-## Configuration (`config.json`)
+## Configuration (`data/config.json`)
 
 ```json
 {
@@ -209,7 +207,7 @@ Example: `Authorization: Bearer <your_token>`
 - `/api/admin/blacklist`: Manage package blacklist (GET, POST, DELETE).
 - `/api/admin/config`: Manage configuration (GET, PUT).
 - `/cleanup`: Manually trigger cache cleanup.
-- `/reload`: Reload configuration from `config.json`.
+- `/reload`: Reload configuration from `data/config.json`.
 
 ## License
 

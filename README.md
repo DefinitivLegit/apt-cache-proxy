@@ -120,37 +120,6 @@ python main.py
 
 The server will start on the configured host and port (default: `http://0.0.0.0:8080`).
 
-### Running as a Service (Linux)
-
-To run the proxy as a systemd service:
-
-1.  Copy the application files to `/opt/apt-cache-proxy`:
-    ```bash
-    sudo mkdir -p /opt/apt-cache-proxy
-    sudo cp -r . /opt/apt-cache-proxy/
-    ```
-
-2.  Install dependencies globally or in a venv (adjust path in service file if using venv):
-    ```bash
-    sudo pip3 install -r requirements.txt
-    ```
-
-3.  Copy the service file:
-    ```bash
-    sudo cp apt-cache-proxy.service /etc/systemd/system/
-    ```
-
-4.  Reload systemd and start the service:
-    ```bash
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now apt-cache-proxy
-    ```
-
-5.  Check status:
-    ```bash
-    sudo systemctl status apt-cache-proxy
-    ```
-
 ### Client Configuration
 
 You can configure your clients in two ways:

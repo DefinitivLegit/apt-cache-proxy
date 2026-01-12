@@ -1,0 +1,15 @@
+services:
+  apt-cache-proxy:
+    # This pulls the image we just published
+    image: ghcr.io/definitivlegit/apt-cache-proxy:latest
+    container_name: apt-cache-proxy
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persist the downloaded cache packages
+      - ./storage:/app/storage
+      # Persist the SQLite statistics database
+      - ./data:/app/data
+      # Mount the config file so you can edit it easily on your host
+      - ./config.json:/app/config.json

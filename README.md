@@ -45,7 +45,7 @@ Use the `admin_token` from `data/config.json` to log in to the admin panel.
 
 ### Using Docker Compose
 
-1.  Download `docker-compose.prod.yml` (or copy the content below).
+1.  Install Docker and Docker Compose, then create `docker-compose.yml`:
 
     ```yaml
     services:
@@ -62,7 +62,7 @@ Use the `admin_token` from `data/config.json` to log in to the admin panel.
 
 2.  Start the container:
     ```bash
-    docker-compose -f docker-compose.prod.yml up -d
+    docker compose up -d
     ```
 
 ### Using Docker CLI

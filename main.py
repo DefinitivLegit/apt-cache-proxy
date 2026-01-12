@@ -26,26 +26,32 @@ def background_tasks():
         time.sleep(1)
 
     # Initial scan
-    update_file_stats()
+    try:
+        update_file_stats()
+    except Exception as e:
+        logger.error(f"Initial file stats update failed: {e}")
     last_file_scan = time.time()
 
     while True:
-        current_time = time.time()
-        
-        # Save stats every minute
-        if current_time - last_save > 60:
-            save_stats_to_db()
-            last_save = current_time
+        try:
+            current_time = time.time()
             
-        # Update file stats every minute
-        if current_time - last_file_scan > 60:
-            update_file_stats()
-            last_file_scan = current_time
+            # Save stats every minute
+            if current_time - last_save > 60:
+                save_stats_to_db()
+                last_save = current_time
+                
+            # Update file stats every 5 minutes (expensive operation)
+            if current_time - last_file_scan > 300:
+                update_file_stats()
+                last_file_scan = current_time
 
-        # Clean cache every hour
-        if current_time - last_cleanup > 3600:
-            clean_old_cache()
-            last_cleanup = current_time
+            # Clean cache every hour
+            if current_time - last_cleanup > 3600:
+                clean_old_cache()
+                last_cleanup = current_time
+        except Exception as e:
+            logger.error(f"Error in background tasks: {e}")
             
         time.sleep(10)
 

@@ -6,7 +6,7 @@ import requests
 import re
 from pathlib import Path
 from datetime import datetime, timedelta
-from flask import Response, stream_with_context
+from flask import Response
 from utils.logger import logger
 from utils.config import get_config
 from services.stats import STATS, stats_lock, add_log, save_stats_to_db
@@ -139,23 +139,33 @@ def clean_old_cache():
         cutoff_time = time.time() - (cache_days * 24 * 60 * 60)
         
         cleaned_count = 0
-        for root, dirs, files in os.walk(storage_path):
-            for filename in files:
-                filepath = os.path.join(root, filename)
-                try:
-                    # Check atime (last access)
-                    stat = os.stat(filepath)
-                    last_access = stat.st_atime
-                    
-                    # Fallback to mtime if atime is not updated/reliable or older than mtime (which shouldn't happen but safety)
-                    if stat.st_mtime > last_access:
-                        last_access = stat.st_mtime
+        
+        # Use stack-based scandir for better performance
+        stack = [str(storage_path)]
+        while stack:
+            current_dir = stack.pop()
+            try:
+                with os.scandir(current_dir) as scanner:
+                    for entry in scanner:
+                        if entry.is_dir():
+                            stack.append(entry.path)
+                        elif entry.is_file():
+                            try:
+                                # entry.stat() is cached
+                                stat = entry.stat()
+                                last_access = stat.st_atime
+                                
+                                # Fallback to mtime if atime is not updated/reliable or older than mtime
+                                if stat.st_mtime > last_access:
+                                    last_access = stat.st_mtime
 
-                    if last_access < cutoff_time:
-                        os.remove(filepath)
-                        cleaned_count += 1
-                except Exception as e:
-                    logger.error(f"Error checking/removing {filepath}: {e}")
+                                if last_access < cutoff_time:
+                                    os.remove(entry.path)
+                                    cleaned_count += 1
+                            except Exception:
+                                pass
+            except Exception as e:
+                logger.error(f"Error scanning {current_dir}: {e}")
         
         if cleaned_count > 0:
             logger.info(f"Cleanup: Removed {cleaned_count} old files (accessed > {cache_days} days ago)")
@@ -210,6 +220,7 @@ def stream_and_cache(urls, cache_path, headers):
         try:
             logger.info(f"Fetching from upstream: {url}")
             # allow_redirects=True is default, but explicit is good
+            # Increase chunk size for better throughput
             response = requests.get(url, stream=True, headers=headers, timeout=20, allow_redirects=True)
             
             if response.status_code == 404:
@@ -237,12 +248,13 @@ def stream_and_cache(urls, cache_path, headers):
                 if response.status_code == 206:
                     add_log(f"PARTIAL: {cache_path.name}", "WARNING")
                     def generate_partial():
-                        for chunk in response.iter_content(chunk_size=65536):
+                        # Increased chunk size to 1MB
+                        for chunk in response.iter_content(chunk_size=1024 * 1024):
                             if chunk:
                                 with stats_lock:
                                     STATS['bytes_served'] += len(chunk)
                                 yield chunk
-                    return Response(stream_with_context(generate_partial()), status=206, headers=resp_headers)
+                    return Response(generate_partial(), status=206, headers=resp_headers)
 
                 # If 200 OK
                 if should_cache:
@@ -252,7 +264,8 @@ def stream_and_cache(urls, cache_path, headers):
                     def generate_cached():
                         try:
                             with open(temp_path, 'wb') as f:
-                                for chunk in response.iter_content(chunk_size=65536):
+                                # Increased chunk size to 1MB
+                                for chunk in response.iter_content(chunk_size=1024 * 1024):
                                     if chunk:
                                         f.write(chunk)
                                         chunk_len = len(chunk)
@@ -265,6 +278,7 @@ def stream_and_cache(urls, cache_path, headers):
                             add_log(f"CACHED: {cache_path.name}", "SUCCESS")
                             # Trigger save occasionally on write
                             if STATS['bytes_served'] % (10 * 1024 * 1024) == 0:
+                                # Use a separate thread but don't hold onto request context
                                 threading.Thread(target=save_stats_to_db).start()
                         except Exception as e:
                             logger.error(f"Error during caching: {e}")
@@ -273,7 +287,7 @@ def stream_and_cache(urls, cache_path, headers):
                                 temp_path.unlink()
                     
                     return Response(
-                        stream_with_context(generate_cached()),
+                        generate_cached(),
                         status=200,
                         headers=resp_headers,
                         direct_passthrough=True
@@ -281,12 +295,13 @@ def stream_and_cache(urls, cache_path, headers):
                 else:
                     # Don't cache, just stream
                     def generate_stream():
-                        for chunk in response.iter_content(chunk_size=65536):
+                        # Increased chunk size to 1MB
+                        for chunk in response.iter_content(chunk_size=1024 * 1024):
                             if chunk:
                                 with stats_lock:
                                     STATS['bytes_served'] += len(chunk)
                                 yield chunk
-                    return Response(stream_with_context(generate_stream()), status=200, headers=resp_headers)
+                    return Response(generate_stream(), status=200, headers=resp_headers)
             
             # If we got here, it's an error code (500, 502, 403, etc)
             logger.warning(f"Upstream returned status {response.status_code} for {url}")

@@ -74,40 +74,51 @@ def save_stats_to_db():
 
 def update_file_stats():
     """Calculate file statistics (expensive operation)"""
-    total_files = 0
-    total_size = 0
-    distro_stats = {}
-    storage_path_str = get_config('storage_path_resolved')
-    
-    if storage_path_str:
-        storage_path = Path(storage_path_str)
-        if storage_path.exists():
-            for root, dirs, files in os.walk(storage_path):
-                rel_path = os.path.relpath(root, storage_path)
-                distro = rel_path.split(os.sep)[0]
-                
-                # Skip if we are at root or hidden folders
-                if distro == '.' or distro.startswith('.'):
-                    continue
-                    
-                if distro not in distro_stats:
-                    distro_stats[distro] = {'files': 0, 'size': 0}
-
-                distro_stats[distro]['files'] += len(files)
-                total_files += len(files)
-                
-                for filename in files:
-                    filepath = os.path.join(root, filename)
-                    try:
-                        fsize = os.path.getsize(filepath)
-                        total_size += fsize
-                        distro_stats[distro]['size'] += fsize
-                    except:
-                        pass
-    
-    with file_stats_lock:
-        FILE_STATS['total_files'] = total_files
-        FILE_STATS['total_size'] = total_size
-        FILE_STATS['distro_stats'] = distro_stats
-    
-    logger.info("File stats updated")
+    try:
+        total_files = 0
+        total_size = 0
+        distro_stats = {}
+        storage_path_str = get_config('storage_path_resolved')
+        
+        if storage_path_str:
+            storage_path = Path(storage_path_str)
+            if storage_path.exists():
+                # Use os.scandir for better performance
+                with os.scandir(storage_path) as it:
+                    for entry in it:
+                        if entry.is_dir() and not entry.name.startswith('.'):
+                            distro = entry.name
+                            d_files = 0
+                            d_size = 0
+                            
+                            # Recursive scan for this distro using stack
+                            stack = [entry.path]
+                            while stack:
+                                current_dir = stack.pop()
+                                try:
+                                    with os.scandir(current_dir) as scanner:
+                                        for item in scanner:
+                                            if item.is_file():
+                                                d_files += 1
+                                                try:
+                                                    # item.stat() is cached
+                                                    d_size += item.stat().st_size
+                                                except:
+                                                    pass
+                                            elif item.is_dir():
+                                                stack.append(item.path)
+                                except Exception:
+                                    pass
+                            
+                            distro_stats[distro] = {'files': d_files, 'size': d_size}
+                            total_files += d_files
+                            total_size += d_size
+        
+        with file_stats_lock:
+            FILE_STATS['total_files'] = total_files
+            FILE_STATS['total_size'] = total_size
+            FILE_STATS['distro_stats'] = distro_stats
+        
+        logger.info("File stats updated")
+    except Exception as e:
+        logger.error(f"Error updating file stats: {e}")

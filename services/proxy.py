@@ -3,7 +3,7 @@ import select
 import requests
 import os
 import time
-from flask import Response, stream_with_context, request, send_file
+from flask import Response, request, send_file
 from utils.logger import logger
 from utils.config import get_config
 from services.stats import STATS, stats_lock, add_log
@@ -37,10 +37,12 @@ def direct_proxy(url, headers):
     try:
         logger.info(f"Direct proxying: {url}")
         add_log(f"PROXY: {url}", "INFO")
+        # Increased chunk size for better throughput
         resp = requests.get(url, headers=headers, stream=True, timeout=20, allow_redirects=True)
         
         def generate():
-            for chunk in resp.iter_content(chunk_size=65536):
+            # Increased chunk size to 1MB
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):
                 if chunk:
                     with stats_lock:
                         STATS['bytes_served'] += len(chunk)
@@ -50,7 +52,7 @@ def direct_proxy(url, headers):
         headers = [(name, value) for (name, value) in resp.raw.headers.items()
                    if name.lower() not in excluded_headers]
         
-        return Response(stream_with_context(generate()), status=resp.status_code, headers=headers)
+        return Response(generate(), status=resp.status_code, headers=headers)
     except Exception as e:
         logger.error(f"Direct proxy error for {url}: {e}")
         add_log(f"Proxy error for {url}: {e}", "ERROR")
@@ -67,9 +69,6 @@ def proxy_package_logic(distro, package_path):
             STATS['cache_hits'] += 1
         return serve_from_cache(cache_path)
 
-    with stats_lock:
-        STATS['cache_misses'] += 1
-    
     upstream_key = get_upstream_key(distro, package_path)
     mirrors_config = get_all_mirrors()
     
@@ -93,7 +92,16 @@ def proxy_package_logic(distro, package_path):
     
     headers = {key: value for key, value in request.headers if key.lower() != 'host'}
     
-    return stream_and_cache(upstream_urls, cache_path, headers)
+    response = stream_and_cache(upstream_urls, cache_path, headers)
+
+    if response.status_code == 304:
+        with stats_lock:
+            STATS['cache_hits'] += 1
+    else:
+        with stats_lock:
+            STATS['cache_misses'] += 1
+
+    return response
 
 def handle_connect(path):
     """Handle HTTPS CONNECT tunneling"""
@@ -150,7 +158,8 @@ def handle_connect(path):
                     if not r: continue
                     
                     for s in r:
-                        data = s.recv(8192)
+                        # Increased buffer size for better throughput
+                        data = s.recv(65536)
                         if not data:
                             return
                         if s is client:

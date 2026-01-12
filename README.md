@@ -38,10 +38,47 @@ Use the `admin_token` from `config.json` to log in to the admin panel.
 
 ## Prerequisites
 
-- Python 3.8+
-- pip (Python package manager)
+- Python 3.8+ (for manual installation)
+- OR Docker / Docker Compose
 
-## Installation
+## Docker Installation (Recommended)
+
+### Using Docker Compose
+
+1.  Download `docker-compose.prod.yml` (or copy the content below) and `config.json`.
+
+    ```yaml
+    services:
+      apt-cache-proxy:
+        image: ghcr.io/definitivlegit/apt-cache-proxy:latest
+        container_name: apt-cache-proxy
+        restart: unless-stopped
+        ports:
+          - "8080:8080"
+        volumes:
+          - ./storage:/app/storage
+          - ./data:/app/data
+          - ./config.json:/app/config.json
+    ```
+
+2.  Start the container:
+    ```bash
+    docker-compose -f docker-compose.prod.yml up -d
+    ```
+
+### Using Docker CLI
+
+```bash
+docker run -d \
+  --name apt-cache-proxy \
+  -p 8080:8080 \
+  -v $(pwd)/storage:/app/storage \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config.json:/app/config.json \
+  ghcr.io/definitivlegit/apt-cache-proxy:latest
+```
+
+## Manual Installation
 
 1.  Clone the repository:
     ```bash

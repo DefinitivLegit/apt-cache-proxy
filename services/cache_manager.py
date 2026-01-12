@@ -4,6 +4,7 @@ import time
 import threading
 import requests
 import re
+import gzip
 from pathlib import Path
 from datetime import datetime, timedelta
 from flask import Response
@@ -11,6 +12,7 @@ from utils.logger import logger
 from utils.config import get_config
 from services.stats import STATS, stats_lock, add_log, save_stats_to_db
 from services.database import db_lock, get_db_connection
+from services.mirrors import get_all_mirrors, get_upstream_key
 
 # In-memory blacklist cache
 BLACKLIST_PATTERNS = []
@@ -197,6 +199,154 @@ def delete_cached_file(rel_path):
     except Exception as e:
         logger.error(f"Error deleting file {rel_path}: {e}")
         return False
+
+def search_upstream_packages(distro, query):
+    """Search for packages in upstream mirror by checking Packages.gz if available or simple path check"""
+    results = []
+    
+    # 1. If query looks like a path, check directly
+    if '/' in query:
+        upstream_key = get_upstream_key(distro, query)
+        mirrors_config = get_all_mirrors()
+        
+        if upstream_key in mirrors_config:
+            mirrors = mirrors_config[upstream_key]
+            if isinstance(mirrors, str):
+                mirrors = [mirrors]
+            
+            for mirror in mirrors:
+                url = f"{mirror}/{query}"
+                try:
+                    resp = requests.head(url, timeout=2)
+                    if resp.status_code == 200:
+                        # Check if already cached
+                        cache_path = get_cache_path(distro, query)
+                        is_cached = is_cache_valid(cache_path)
+                        
+                        results.append({
+                            'name': os.path.basename(query), 
+                            'path': query, 
+                            'distro': distro, 
+                            'url': url,
+                            'cached': is_cached
+                        })
+                        # Return immediately if found direct match
+                        return results
+                except:
+                    pass
+
+    # 2. If not a path, or path not found, try to search in cached Packages files
+    # We look for *Packages.gz* or *Packages* files in our cache for this distro
+    storage_path_str = get_config('storage_path_resolved')
+    if not storage_path_str:
+        return results
+        
+    storage_path = Path(storage_path_str) / distro
+    if not storage_path.exists():
+        return results
+
+    # Limit search to avoid timeout
+    limit = 20
+    count = 0
+    
+    # Helper to parse Packages file content
+    def parse_packages_file(filepath):
+        matches = []
+        try:
+            if str(filepath).endswith('.gz'):
+                f = gzip.open(filepath, 'rt', encoding='utf-8', errors='ignore')
+            else:
+                f = open(filepath, 'r', encoding='utf-8', errors='ignore')
+            
+            with f:
+                current_pkg = {}
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        if current_pkg and 'Package' in current_pkg and 'Filename' in current_pkg:
+                            if query.lower() in current_pkg['Package'].lower():
+                                # Check if cached
+                                pkg_path = current_pkg['Filename']
+                                cache_path = get_cache_path(distro, pkg_path)
+                                is_cached = is_cache_valid(cache_path)
+                                
+                                matches.append({
+                                    'name': current_pkg['Package'],
+                                    'path': pkg_path,
+                                    'distro': distro,
+                                    'version': current_pkg.get('Version', 'unknown'),
+                                    'cached': is_cached
+                                })
+                        current_pkg = {}
+                        continue
+                    
+                    if ':' in line:
+                        key, val = line.split(':', 1)
+                        current_pkg[key.strip()] = val.strip()
+        except Exception:
+            pass
+        return matches
+
+    # Find Packages files in cache
+    # They are usually stored as hash_Packages or hash_Packages.gz
+    for root, dirs, files in os.walk(storage_path):
+        for filename in files:
+            if 'Packages' in filename:
+                # Check if it's a real Packages file (by name part)
+                parts = filename.split('_', 1)
+                real_name = parts[1] if len(parts) > 1 else filename
+                
+                if 'Packages' in real_name:
+                    file_matches = parse_packages_file(os.path.join(root, filename))
+                    for m in file_matches:
+                        results.append(m)
+                        count += 1
+                        if count >= limit:
+                            return results
+        if count >= limit:
+            break
+            
+    return results
+
+def manual_cache_package(distro, package_path):
+    """Manually download and cache a package"""
+    try:
+        cache_path = get_cache_path(distro, package_path)
+        
+        # Check if already cached
+        if is_cache_valid(cache_path):
+            return True, "File already cached"
+
+        upstream_key = get_upstream_key(distro, package_path)
+        mirrors_config = get_all_mirrors()
+        
+        if upstream_key not in mirrors_config:
+            if distro in mirrors_config:
+                upstream_key = distro
+            else:
+                return False, f"No upstream configured for: {upstream_key}"
+        
+        mirrors = mirrors_config[upstream_key]
+        if isinstance(mirrors, str):
+            mirrors = [mirrors]
+        
+        upstream_urls = [f"{mirror}/{package_path}" for mirror in mirrors]
+        
+        # Use stream_and_cache but consume the response to force download
+        headers = {'User-Agent': 'apt-cache-proxy-manual'}
+        response = stream_and_cache(upstream_urls, cache_path, headers)
+        
+        if response.status_code == 200:
+            # Consume the generator to ensure file is written
+            for _ in response.response:
+                pass
+            return True, "Successfully cached"
+        else:
+            return False, f"Failed to download: HTTP {response.status_code}"
+            
+    except Exception as e:
+        logger.error(f"Error manual caching {distro}/{package_path}: {e}")
+        return False, str(e)
 
 def stream_and_cache(urls, cache_path, headers):
     """Stream content from upstream and cache it locally"""

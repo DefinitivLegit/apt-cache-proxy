@@ -21,10 +21,13 @@
         .modal-content { background-color: #161b22; border: 1px solid #30363d; color: #e6edf3; }
         .modal-header { border-bottom: 1px solid #30363d; }
         .modal-footer { border-top: 1px solid #30363d; }
-        .form-control { background-color: #0d1117; border: 1px solid #30363d; color: #e6edf3; }
-        .form-control:focus { background-color: #0d1117; border-color: #58a6ff; color: #e6edf3; box-shadow: 0 0 0 0.25rem rgba(88, 166, 255, 0.25); }
+        .form-control, .form-select { background-color: #0d1117; border: 1px solid #30363d; color: #e6edf3; }
+        .form-control:focus, .form-select:focus { background-color: #0d1117; border-color: #58a6ff; color: #e6edf3; box-shadow: 0 0 0 0.25rem rgba(88, 166, 255, 0.25); }
         .cursor-pointer { cursor: pointer; }
         .form-check-input:checked { background-color: #238636; border-color: #238636; }
+        .list-group-item { background-color: #0d1117; border-color: #30363d; color: #e6edf3; cursor: pointer; }
+        .list-group-item:hover { background-color: #161b22; }
+        .list-group-item.disabled { background-color: #161b22; color: #8b949e; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -107,6 +110,39 @@
             </div>
             <div id="packageCollapse" class="collapse show">
                 <div class="card-body">
+
+                    <!-- Manual Cache Section -->
+                    <div class="mb-4 border-bottom border-secondary pb-3">
+                        <h6><i class="bi bi-cloud-download me-2"></i>Manual Cache / Download</h6>
+                        <p class="text-muted small">Manually download and cache a package from upstream. You can search for packages if you don't know the full path.</p>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-3">
+                                <div class="input-group">
+                                    <select class="form-select" id="manual-distro-select" onchange="toggleCustomDistro()">
+                                        <option value="" disabled selected>Select Distro</option>
+                                        <!-- Options populated dynamically -->
+                                        <option value="custom">Custom...</option>
+                                    </select>
+                                    <input type="text" class="form-control d-none" id="manual-distro-custom" placeholder="Enter Distro">
+                                    <button class="btn btn-outline-secondary d-none" type="button" id="manual-distro-cancel" onclick="resetDistroSelect()"><i class="bi bi-x"></i></button>
+                                </div>
+                            </div>
+                            <div class="col-md-7 position-relative">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="manual-path" placeholder="Path or Package Name (e.g. vim)">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="searchUpstream()">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                </div>
+                                <!-- Search Results Dropdown -->
+                                <div id="upstream-results" class="list-group position-absolute w-100 mt-1 shadow-lg d-none" style="z-index: 1000; max-height: 300px; overflow-y: auto;">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-success w-100" onclick="manualCache()">Cache</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Blacklist Section -->
                     <div class="mb-4 border-bottom border-secondary pb-3">
@@ -372,6 +408,14 @@
                 const tbody = document.getElementById('mirrors-table');
                 tbody.innerHTML = '';
 
+                // Populate distro select dropdown
+                const distroSelect = document.getElementById('manual-distro-select');
+                // Keep first option (Select Distro) and last option (Custom)
+                const firstOption = distroSelect.options[0];
+                const lastOption = distroSelect.options[distroSelect.options.length - 1];
+                distroSelect.innerHTML = '';
+                distroSelect.appendChild(firstOption);
+
                 // Sort: Pending first, then Approved, then Blacklisted
                 const sorted = Object.entries(data).sort((a, b) => {
                     const order = { 'pending': 0, 'approved': 1, 'blacklisted': 2 };
@@ -379,6 +423,7 @@
                 });
 
                 for (const [name, info] of sorted) {
+                    // Add to table
                     const urls = info.urls.join('<br>');
                     let statusIcon = '';
                     if (info.status === 'approved') statusIcon = '<i class="bi bi-check-circle-fill status-approved"></i> Approved';
@@ -400,8 +445,52 @@
                         </td>
                     `;
                     tbody.appendChild(tr);
+
+                    // Add to dropdown if approved
+                    if (info.status === 'approved') {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.text = name;
+                        distroSelect.appendChild(option);
+                    }
                 }
+
+                // Re-add Custom option
+                distroSelect.appendChild(lastOption);
             });
+        }
+
+        function toggleCustomDistro() {
+            const select = document.getElementById('manual-distro-select');
+            const customInput = document.getElementById('manual-distro-custom');
+            const cancelBtn = document.getElementById('manual-distro-cancel');
+
+            if (select.value === 'custom') {
+                select.classList.add('d-none');
+                customInput.classList.remove('d-none');
+                cancelBtn.classList.remove('d-none');
+                customInput.focus();
+            }
+        }
+
+        function resetDistroSelect() {
+            const select = document.getElementById('manual-distro-select');
+            const customInput = document.getElementById('manual-distro-custom');
+            const cancelBtn = document.getElementById('manual-distro-cancel');
+
+            select.value = ""; // Reset selection
+            select.classList.remove('d-none');
+            customInput.classList.add('d-none');
+            cancelBtn.classList.add('d-none');
+            customInput.value = '';
+        }
+
+        function getSelectedDistro() {
+            const select = document.getElementById('manual-distro-select');
+            if (select.value === 'custom' || select.classList.contains('d-none')) {
+                return document.getElementById('manual-distro-custom').value;
+            }
+            return select.value;
         }
 
         function openAddModal() {
@@ -560,6 +649,99 @@
                 },
                 'Delete this cached file?'
             );
+        }
+
+        function searchUpstream() {
+            const distro = getSelectedDistro();
+            const query = document.getElementById('manual-path').value;
+            const resultsDiv = document.getElementById('upstream-results');
+
+            if (!distro || !query) {
+                showToast('Distro and Query are required', 'error');
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="list-group-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Searching...</div>';
+            resultsDiv.classList.remove('d-none');
+
+            fetch(`/api/admin/upstream/search?distro=${encodeURIComponent(distro)}&q=${encodeURIComponent(query)}`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.length === 0) {
+                    resultsDiv.innerHTML = '<div class="list-group-item text-muted">No packages found in cache index. Try full path.</div>';
+                    setTimeout(() => resultsDiv.classList.add('d-none'), 3000);
+                    return;
+                }
+
+                resultsDiv.innerHTML = data.map(item => `
+                    <div class="list-group-item list-group-item-action ${item.cached ? 'disabled' : ''}" ${!item.cached ? `onclick="selectUpstreamPackage('${item.path}')"` : ''}>
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${item.name}</h6>
+                            <small>${item.version || ''}</small>
+                        </div>
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <small class="text-muted text-truncate" style="max-width: 85%;">${item.path}</small>
+                            ${item.cached ? '<span class="badge bg-success">Cached</span>' : ''}
+                        </div>
+                    </div>
+                `).join('');
+            })
+            .catch(err => {
+                resultsDiv.innerHTML = `<div class="list-group-item text-danger">Error: ${err}</div>`;
+            });
+        }
+
+        // Allow Enter key to search upstream
+        document.getElementById('manual-path').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                searchUpstream();
+            }
+        });
+
+        function selectUpstreamPackage(path) {
+            document.getElementById('manual-path').value = path;
+            document.getElementById('upstream-results').classList.add('d-none');
+        }
+
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.col-md-7.position-relative');
+            if (!container.contains(e.target)) {
+                document.getElementById('upstream-results').classList.add('d-none');
+            }
+        });
+
+        function manualCache() {
+            const distro = getSelectedDistro();
+            const path = document.getElementById('manual-path').value;
+
+            if (!distro || !path) {
+                showToast('Distro and Path are required', 'error');
+                return;
+            }
+
+            showToast('Starting download...', 'info');
+
+            fetch('/api/admin/cache/manual', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ distro, path })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message);
+                    document.getElementById('manual-path').value = '';
+                } else {
+                    showToast('Failed: ' + (data.message || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => showToast('Error: ' + err, 'error'));
         }
 
         function loadBlacklist() {

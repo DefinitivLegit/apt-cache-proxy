@@ -5,7 +5,7 @@ from flask import Blueprint, Response, request, render_template, jsonify, send_f
 from utils.config import get_config, load_config, save_config_value
 from services.stats import STATS, FILE_STATS, LOG_BUFFER, stats_lock, file_stats_lock, log_lock
 from services.mirrors import get_all_mirrors, get_mirrors_management, update_mirror, delete_mirror, save_mirror_to_db
-from services.cache_manager import clean_old_cache, delete_cached_file, get_blacklist_patterns, add_blacklist_pattern, remove_blacklist_pattern
+from services.cache_manager import clean_old_cache, delete_cached_file, get_blacklist_patterns, add_blacklist_pattern, remove_blacklist_pattern, manual_cache_package, search_upstream_packages
 
 routes = Blueprint('routes', __name__)
 
@@ -169,6 +169,39 @@ def api_delete_cache_file():
     if delete_cached_file(file_path):
         return jsonify({'status': 'success'})
     return Response("Failed to delete file (not found or invalid path)", status=404)
+
+@routes.route('/api/admin/cache/manual', methods=['POST'])
+def api_manual_cache():
+    """Manually download and cache a package"""
+    if not check_auth():
+        return Response("Unauthorized", status=401)
+        
+    data = request.get_json()
+    distro = data.get('distro')
+    path = data.get('path')
+    
+    if not distro or not path:
+        return Response("Missing distro or path", status=400)
+        
+    success, message = manual_cache_package(distro, path)
+    if success:
+        return jsonify({'status': 'success', 'message': message})
+    return Response(f"Failed: {message}", status=500)
+
+@routes.route('/api/admin/upstream/search', methods=['GET'])
+def api_search_upstream():
+    """Search for packages in upstream mirrors"""
+    if not check_auth():
+        return Response("Unauthorized", status=401)
+        
+    distro = request.args.get('distro')
+    query = request.args.get('q')
+    
+    if not distro or not query:
+        return jsonify([])
+        
+    results = search_upstream_packages(distro, query)
+    return jsonify(results)
 
 @routes.route('/api/admin/blacklist', methods=['GET'])
 def api_get_blacklist():

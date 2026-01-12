@@ -13,6 +13,7 @@ A modern, lightweight APT caching proxy server written in Python. It caches pack
 - **Persistent Statistics**: Statistics are saved to a SQLite database, so they persist across restarts.
 - **Automatic Cleanup**: Background task automatically removes cache files older than the configured retention period (default: 7 days).
 - **Package Blacklisting**: Prevent specific packages from being cached (served directly from upstream).
+- **Manual Caching**: Manually download and cache specific packages via the admin panel.
 - **Hot Reload**: Update configuration without restarting the server using the `/reload` endpoint (Authenticated).
 - **Cross-Platform**: Runs on Linux and Windows.
 
@@ -30,6 +31,7 @@ Use the `admin_token` from `config.json` to log in to the admin panel.
 ### Admin Features
 - **Mirror Management**: Add, edit, delete, approve, or blacklist upstream mirrors.
 - **Package Management**: Search for cached packages, view details (size, cached date, last hit), and delete specific files.
+- **Manual Caching**: Search for packages on upstream mirrors and manually trigger a download to the cache.
 - **Blacklist**: Add patterns (e.g., `*kernel*`) to prevent specific packages from being cached.
 - **Configuration**: Toggle cache retention policy and set retention days.
 - **System Actions**: Manually trigger cache cleanup or reload configuration.
@@ -165,6 +167,8 @@ Example: `Authorization: Bearer <your_token>`
 - `/admin`: Admin panel interface.
 - `/api/admin/mirrors`: Manage mirrors (GET, POST, PUT, DELETE).
 - `/api/admin/cache`: Manage cached files (DELETE).
+- `/api/admin/cache/manual`: Manually cache a package (POST).
+- `/api/admin/upstream/search`: Search for packages on upstream/cache index (GET).
 - `/api/admin/blacklist`: Manage package blacklist (GET, POST, DELETE).
 - `/api/admin/config`: Manage configuration (GET, PUT).
 - `/cleanup`: Manually trigger cache cleanup.

@@ -10,6 +10,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG = {}
 config_lock = Lock()
 
+def is_docker():
+    """Check if running inside a Docker container"""
+    return os.path.exists('/.dockerenv')
+
 DEFAULT_CONFIG = {
   "host": "0.0.0.0",
   "port": 8080,
@@ -21,6 +25,10 @@ DEFAULT_CONFIG = {
   "passthrough_mode": True,
   "admin_token": "changeme_to_secure_random_string"
 }
+
+if is_docker():
+    DEFAULT_CONFIG.pop('storage_path', None)
+    DEFAULT_CONFIG.pop('database_path', None)
 
 def get_config_path():
     """Returns the path to the config file, ensuring the directory exists."""
@@ -83,6 +91,10 @@ def load_config():
             CONFIG.clear()
             CONFIG.update(new_config)
             
+            if is_docker():
+                CONFIG['storage_path'] = 'storage'
+                CONFIG['database_path'] = 'data/stats.db'
+
             # Ensure storage path exists
             storage_path_str = CONFIG.get('storage_path', 'storage')
             if os.path.isabs(storage_path_str):

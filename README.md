@@ -16,6 +16,24 @@ A modern, lightweight APT caching proxy server written in Python. It caches pack
 - **Hot Reload**: Update configuration without restarting the server using the `/reload` endpoint (Authenticated).
 - **Cross-Platform**: Runs on Linux and Windows.
 
+## Dashboard & Admin Panel
+
+- **Public Dashboard**: `http://<your-proxy-ip:port>`
+- **Admin Panel**: `http://<your-proxy-ip:port>/admin`
+
+![Dashboard](images/dashboard.png)
+
+Use the `admin_token` from `config.json` to log in to the admin panel.
+
+![Admin Panel](images/admin.png)
+
+### Admin Features
+- **Mirror Management**: Add, edit, delete, approve, or blacklist upstream mirrors.
+- **Package Management**: Search for cached packages, view details (size, cached date, last hit), and delete specific files.
+- **Blacklist**: Add patterns (e.g., `*kernel*`) to prevent specific packages from being cached.
+- **Configuration**: Toggle cache retention policy and set retention days.
+- **System Actions**: Manually trigger cache cleanup or reload configuration.
+
 ## Prerequisites
 
 - Python 3.8+
@@ -129,22 +147,8 @@ deb http://deb.debian.org/debian bookworm main
 
 Proxy:
 ```
-deb http://<your-proxy-ip>/debian bookworm main
+deb http://<your-proxy-ip:port>/debian bookworm main
 ```
-
-## Dashboard & Admin Panel
-
-- **Public Dashboard**: `http://<your-proxy-ip:port>`
-- **Admin Panel**: `http://<your-proxy-ip:port>/admin`
-
-Use the `admin_token` from `config.json` to log in to the admin panel.
-
-### Admin Features
-- **Mirror Management**: Add, edit, delete, approve, or blacklist upstream mirrors.
-- **Package Management**: Search for cached packages, view details (size, cached date, last hit), and delete specific files.
-- **Blacklist**: Add patterns (e.g., `*kernel*`) to prevent specific packages from being cached.
-- **Configuration**: Toggle cache retention policy and set retention days.
-- **System Actions**: Manually trigger cache cleanup or reload configuration.
 
 ## API Endpoints
 

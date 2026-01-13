@@ -118,13 +118,10 @@
                         <div class="row g-2 mb-2">
                             <div class="col-md-3">
                                 <div class="input-group">
-                                    <select class="form-select" id="manual-distro-select" onchange="toggleCustomDistro()">
+                                    <select class="form-select" id="manual-distro-select">
                                         <option value="" disabled selected>Select Distro</option>
                                         <!-- Options populated dynamically -->
-                                        <option value="custom">Custom...</option>
                                     </select>
-                                    <input type="text" class="form-control d-none" id="manual-distro-custom" placeholder="Enter Distro">
-                                    <button class="btn btn-outline-secondary d-none" type="button" id="manual-distro-cancel" onclick="resetDistroSelect()"><i class="bi bi-x"></i></button>
                                 </div>
                             </div>
                             <div class="col-md-7 position-relative">
@@ -410,9 +407,8 @@
 
                 // Populate distro select dropdown
                 const distroSelect = document.getElementById('manual-distro-select');
-                // Keep first option (Select Distro) and last option (Custom)
+                // Keep first option (Select Distro)
                 const firstOption = distroSelect.options[0];
-                const lastOption = distroSelect.options[distroSelect.options.length - 1];
                 distroSelect.innerHTML = '';
                 distroSelect.appendChild(firstOption);
 
@@ -454,43 +450,11 @@
                         distroSelect.appendChild(option);
                     }
                 }
-
-                // Re-add Custom option
-                distroSelect.appendChild(lastOption);
             });
         }
 
-        function toggleCustomDistro() {
-            const select = document.getElementById('manual-distro-select');
-            const customInput = document.getElementById('manual-distro-custom');
-            const cancelBtn = document.getElementById('manual-distro-cancel');
-
-            if (select.value === 'custom') {
-                select.classList.add('d-none');
-                customInput.classList.remove('d-none');
-                cancelBtn.classList.remove('d-none');
-                customInput.focus();
-            }
-        }
-
-        function resetDistroSelect() {
-            const select = document.getElementById('manual-distro-select');
-            const customInput = document.getElementById('manual-distro-custom');
-            const cancelBtn = document.getElementById('manual-distro-cancel');
-
-            select.value = ""; // Reset selection
-            select.classList.remove('d-none');
-            customInput.classList.add('d-none');
-            cancelBtn.classList.add('d-none');
-            customInput.value = '';
-        }
-
         function getSelectedDistro() {
-            const select = document.getElementById('manual-distro-select');
-            if (select.value === 'custom' || select.classList.contains('d-none')) {
-                return document.getElementById('manual-distro-custom').value;
-            }
-            return select.value;
+            return document.getElementById('manual-distro-select').value;
         }
 
         function openAddModal() {

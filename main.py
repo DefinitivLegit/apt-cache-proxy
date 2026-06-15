@@ -11,9 +11,13 @@ from services.mirrors import load_mirrors_from_db, save_mirror_to_db, get_all_mi
 from services.cache_manager import clean_old_cache, load_blacklist_from_db
 from services.proxy import handle_connect, proxy_package_logic, direct_proxy
 
+from utils.peers_routes import routes_peers
 
 app = Flask(__name__)
 app.register_blueprint(routes)
+
+if get_config('peers_enabled', True):
+    app.register_blueprint(routes_peers)
 
 def background_tasks():
     """Background thread to clean cache and save stats periodically"""

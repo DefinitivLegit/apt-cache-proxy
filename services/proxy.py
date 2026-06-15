@@ -9,6 +9,8 @@ from utils.config import get_config
 from services.stats import STATS, stats_lock, add_log
 from services.mirrors import get_all_mirrors, get_upstream_key
 from services.cache_manager import get_cache_path, is_cache_valid, stream_and_cache
+from services.peers import get_peers_urls
+
 
 def serve_from_cache(cache_path):
     """Serve file from local cache"""
@@ -85,6 +87,11 @@ def proxy_package_logic(distro, package_path):
     if isinstance(mirrors, str):
         mirrors = [mirrors]
     
+    # insert in mirrors the urls of available peers with the required package in cache (if any)
+    peers_urls = get_peers_urls(distro, package_path)
+    for url in peers_urls:
+        mirrors.insert(0, url)
+
     upstream_urls = [f"{mirror}/{package_path}" for mirror in mirrors]
     
     logger.info(f"Request: /{distro}/{package_path} -> {upstream_key}")

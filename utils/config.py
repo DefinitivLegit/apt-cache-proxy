@@ -23,6 +23,8 @@ DEFAULT_CONFIG = {
   "cache_retention_enabled": True,
   "log_level": "INFO",
   "passthrough_mode": True,
+  "peers_enabled": True,
+  "peers_blacklist": { "fullpath": [], "name": [ "^Packages(\\.gz){0,1}$", "^Release$", "^InRelease$" ], "stem": [], "suffix": [ "^\\.gpg$", "^\\.md5$", "^\\.sha(\\d){0,3}$" ] },
   "admin_token": "changeme_to_secure_random_string"
 }
 
